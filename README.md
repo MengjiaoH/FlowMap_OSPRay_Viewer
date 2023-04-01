@@ -1,5 +1,8 @@
 # A Mini-app Example for Scientific Visualization Using OSPRay
 
+Thanks Will Usher for sharing the [OSPRay viewer](https://github.com/Twinklebear/mini-osp-vis).
+This flow map viewer is built mini-osp-viewer with adding neural network inference, pathline rendering and FTLE interpolation. 
+
 Dependencies:
 
 - OSPRay 2.0
