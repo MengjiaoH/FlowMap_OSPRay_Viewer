@@ -1,45 +1,84 @@
-cmake_minimum_required(VERSION 3.16)
-project(CPP_INFERENCE)
+cmake_minimum_required(VERSION 3.5)
+project(miniscivis)
 
-set(rkcommom_DIR "/home/mengjiao/Desktop/externals/rkcommon/install/lib/cmake/rkcommon-1.10.0/")
+if (NOT WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
+endif()
+
+include(ExternalProject)
+
+find_package(SDL2 REQUIRED)
+find_package(OpenGL REQUIRED)
+find_package(ospray 2.0 REQUIRED)
 find_package(rkcommon REQUIRED)
-
-# list(APPEND PLUGINS "nvinfer")
-# list(APPEND PLUGINS "nvonnxparser")
-# list(APPEND PLUGINS "nvparsers")
-
-# foreach(libName ${PLUGINS})
-#     find_library(${libName}_lib NAMES ${libName} "/usr" PATH_SUFFIXES lib)
-#     list(APPEND PLUGIN_LIBS "${${libName}_lib}")
-# endforeach()
-
-# find_library(NVINFER NAMES libnvinfer.so)
-# find_library(NVPARSERS NAMES nvparsers)
-# find_library(NVONNXPARSERS NAMES nvonnxparser)
-# if(NVINFER)
-#    message("TensorRT is available!")
-#    message("NVINFER: ${NVINFER}")
-#    message("NVPARSERS: ${NVPARSERS}")
-#    message("NVONNXPARSERS: ${NVONNXPARSERS}")
-#    set(TRT_AVAIL ON)
-# else()
-#   message("TensorRT is NOT Available")
-#   set(TRT_AVAIL OFF)
-# endif()
-
-find_package(Torch REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
-
 find_package(TBB REQUIRED)
+find_package(OpenVisus)
+include(cmake/glm.cmake)
+find_package(VTK REQUIRED)
 
-add_subdirectory(utils)
-include_directories(utils)
+option(USE_EXPLICIT_ISOSURFACE "Use explicit isosurface extraction with VTK" OFF)
+if (USE_EXPLICIT_ISOSURFACE)
+    find_package(VTK)
+endif()
 
 
-add_executable(inference_2D main_2D.cpp)
-target_link_libraries(inference_2D PRIVATE rkcommon::rkcommon utils "${TORCH_LIBRARIES}" TBB::tbb)
-set_property(TARGET inference_2D PROPERTY CXX_STANDARD 17)
+find_package(CGAL)
+include(CGAL_TBB_support) 
 
-add_executable(inference_3D main_3D.cpp)
-target_link_libraries(inference_3D PRIVATE rkcommon::rkcommon utils "${TORCH_LIBRARIES}" TBB::tbb)
-set_property(TARGET inference_3D PROPERTY CXX_STANDARD 17)
+add_subdirectory(imgui)
+add_subdirectory(util)
+
+add_executable(mini_scivis
+    main.cpp
+    loader.cpp
+    load_off.cpp
+    load_vtk.cpp
+    imgui_impl_opengl3.cpp
+    imgui_impl_sdl.cpp)
+
+set_target_properties(mini_scivis PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON)
+
+target_include_directories(mini_scivis PUBLIC
+    $<BUILD_INTERFACE:${SDL2_INCLUDE_DIRS}>
+	$<BUILD_INTERFACE:${OPENGL_INCLUDE_DIR}>)
+
+target_link_libraries(mini_scivis PUBLIC
+    ospray::ospray
+    rkcommon::rkcommon
+    TBB::tbb
+    util
+    imgui
+    CGAL::CGAL 
+    CGAL::TBB_support
+    ${SDL2_LIBRARIES}
+    ${OPENGL_LIBRARY})
+
+target_compile_definitions(mini_scivis PUBLIC
+    -DNOMINMAX
+    -DSDL_MAIN_HANDLED
+    -DOSPRAY_CPP_RKCOMMON_TYPES)
+
+if ("${VTK_FOUND}")
+    target_compile_definitions(mini_scivis PUBLIC
+        -DUSE_EXPLICIT_ISOSURFACE=1)
+    target_include_directories(mini_scivis PUBLIC
+        ${VTK_INCLUDE_DIRS})
+
+    target_link_libraries(mini_scivis PUBLIC
+        ${VTK_LIBRARIES})
+else()
+    message(WARNING "VTK not found, but is required for testing explicit isosurfaces. "
+        "Implicit isosurfaces will be used instead.")
+endif()
+
+if (${OpenVisus_FOUND})
+    target_compile_definitions(mini_scivis PUBLIC
+        -DOPENVISUS_FOUND=1)
+    target_link_libraries(mini_scivis PUBLIC
+        OpenVisus::Idx)
+else()
+    message(WARNING "OpenVisus not found, IDX support will be disabled")
+endif()
+
